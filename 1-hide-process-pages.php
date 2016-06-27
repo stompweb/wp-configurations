@@ -5,8 +5,10 @@
  */
 function hpp_add_submenu_page() {
 
+	// Use a global to reference the submenu page throughout our process.
 	global $hide_process_pages;
 
+	// Setup the submenu page under the Page menu item.
 	$hide_process_pages = add_submenu_page(
 		'edit.php?post_type=page',
 		'Hide Process Pages',
@@ -25,48 +27,33 @@ add_action( 'admin_menu', 'hpp_add_submenu_page' );
 function hpp_manage_pages() {
 	?>
 
-	<style>
-		.select2-container {
-			width: 50%;
-			min-width: 320px;
-		}
-		.select2-results {
-			width: 100%;
-		}
-	</style>
-
 	<h2>Hide Process Pages</h2>
 
-	<?php if ( isset( $_POST['hpp_update_pages'] ) && $_POST['hpp_update_pages'] ) { ?>
-
-		<div id="message" class="updated">
-			<p>Selection Updated.</p>
-		</div>
-
-		<br />
-
-	<?php } ?>
-
-	<p>Select the pages that should be hidden users (Non-Administrators). They will be hidden from the pages section.</p>
+	<p>Select the pages that should be hidden.</p>
 
 	<form method="POST">
 
 		<?php
-
 		$pages = get_pages();
 		$current_selection = get_option( 'hpp_pages' );
-
 		?>
 	  
-		<select name="process_pages[]" id="hide-pages" multiple>
+		<select name="process_pages[]" id="hidden-pages" multiple>
 			<?php foreach ( $pages as $page ) { ?>
-				<option value="<?php echo $page->ID; ?>" <?php if ( in_array( $page->ID, $current_selection ) ) { echo 'selected'; } ?>>
+				<option 
+					value="<?php echo absint( $page->ID ); ?>" 
+					<?php
+					if ( is_array( $current_selection ) && in_array( $page->ID, $current_selection ) ) {
+						echo 'selected';
+					} ?>>
+
 					<?php echo esc_html( $page->post_title ); ?>
+
 				</option>
 			<?php } ?>
 		</select>
 
-		<?php wp_nonce_field( 'update-pages_'.$comment_id ); ?>
+		<?php wp_nonce_field( 'hpp-update-pages' ); ?>
 
 		<p class="submit">
 			<input class="button-primary" type="submit" name="hpp_update_pages" value="Update Selection"/>
@@ -98,7 +85,12 @@ function hpp_enqueue_select2( $hook ) {
 }
 add_action( 'admin_enqueue_scripts', 'hpp_enqueue_select2' );
 
-function admin_inline_js( $hook ) {
+/**
+ * Step 2b (optional) - Initiation select2 on the select boxes
+ *
+ * @param ( $hook ) Current page provided by WordPress to selectively load elements.
+ */
+function hpp_admin_inline_js( $hook ) {
 
 	global $hide_process_pages;
 
@@ -109,12 +101,12 @@ function admin_inline_js( $hook ) {
 
 	<script>
 		jQuery(document).ready(function() { 
-			jQuery("#hide-pages").select2(); 
+			jQuery("#hidden-pages").select2(); 
 		});
 	</script>
 
 <?php }
-add_action( 'admin_print_scripts', 'admin_inline_js' );
+add_action( 'admin_print_scripts', 'hpp_admin_inline_js' );
 
 /**
  * Step 3 - Update user's page selection on submit
@@ -123,14 +115,19 @@ function hpp_update_pages() {
 
 	$process_pages = array();
 
+	// Only continue if our form has been submitted.
 	if ( isset( $_POST['hpp_update_pages'] ) ) {
 
-		if ( check_admin_referer( 'delete-comment_'.$comment_id ) ) {
+		// Ensure this is a request directly from our form.
+		if ( check_admin_referer( 'hpp-update-pages' ) ) {
 
+			// Get the submitted information, ensuring each item in the array is a number.
 			$process_pages = array_map( 'absint', $_POST['process_pages'] );
 
-			update_option( 'hpp_pages', $process_pages );
+			// Update our option in the database.
+			update_option( 'hpp_pages', $process_pages, 'no' );
 
+			// Show confirmation to the user.
 			add_action( 'admin_notices', 'hpp_updated_notice' );
 
 		}
@@ -138,14 +135,6 @@ function hpp_update_pages() {
 
 }
 add_action( 'admin_init', 'hpp_update_pages' );
-
-function hpp_updated_notice() {
-	?>
-	<div class="update-nag notice">
-	  <p><?php _e( 'Please install Advanced Custom Fields, it is required for this plugin to work properly!', 'my_plugin_textdomain' ); ?></p>
-	</div>
-	<?php
-}
 
 /**
  * Step 4 - Hide all the pages in the admin from users without privledges.
@@ -160,17 +149,31 @@ function hpp_hide_pages_admin( $query ) {
 
 	global $typenow;
 
+	// Ensure we're only going working with pages.
 	if ( 'page' != $typenow ) {
 		return;
 	}
 
 	// Get the current array of pages.
-	$current_selection = get_option( 'hpp_pages' );
+	$current_selection = array_map( 'absint', get_option( 'hpp_pages' ) );
 
 	// If is admin and is the main query.
 	if ( is_admin() && $query->is_main_query() ) {
+
+		// Exclude our process pages from the loop.
 		$query->set( 'post__not_in', $current_selection );
 	}
 
 }
 add_action( 'pre_get_posts', 'hpp_hide_pages_admin' );
+
+/**
+ * Helper Function - Update Notice
+ */
+function hpp_updated_notice() {
+	?>
+	<div id="message" class="updated">
+		<p>Selection updated.</p>
+	</div>
+	<?php
+}
