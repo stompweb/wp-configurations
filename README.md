@@ -1,4 +1,4 @@
-# wp-configurations
+# WP Configurations
 Repo to host the code used in my talk on WordPress configurations
 
 ## Content
