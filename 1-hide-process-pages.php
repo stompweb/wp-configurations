@@ -116,7 +116,7 @@ function hpp_update_pages() {
 	$process_pages = array();
 
 	// Only continue if our form has been submitted.
-	if ( isset( $_POST['hpp_update_pages'] ) ) {
+	if ( '' !== ( sanitize_text_field( $_POST['hpp_update_pages'] ) ) ) {
 
 		// Ensure this is a request directly from our form.
 		if ( check_admin_referer( 'hpp-update-pages' ) ) {
